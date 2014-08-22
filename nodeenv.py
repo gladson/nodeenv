@@ -10,7 +10,7 @@
     :license: BSD, see LICENSE for more details.
 """
 
-nodeenv_version = '0.9.2'
+nodeenv_version = '0.11.0'
 
 import sys
 import os
@@ -21,10 +21,13 @@ import subprocess
 import pipes
 
 try:
-    import ConfigParser
+    from ConfigParser import SafeConfigParser as ConfigParser
+    iteritems = lambda dict_: dict_.iteritems()
 except ImportError:
     # Python 3
     from configparser import ConfigParser
+    iteritems = lambda dict_: dict_.items()
+
 
 from pkg_resources import parse_version
 
@@ -35,6 +38,85 @@ abspath = os.path.abspath
 # Utils
 
 
+class Config(object):
+    """
+    Configuration namespace.
+    """
+
+    # Defaults
+    node = 'latest'
+    npm = 'latest'
+    with_npm = False
+    jobs = '2'
+    without_ssl = False
+    debug = False
+    profile = False
+    make = 'make'
+    prebuilt = False
+
+    @classmethod
+    def _load(cls, configfiles, verbose=False):
+        """
+        Load configuration from the given files in reverse order,
+        if they exist and have a [nodeenv] section.
+        """
+        for configfile in reversed(configfiles):
+            configfile = os.path.expanduser(configfile)
+            if not os.path.exists(configfile):
+                continue
+
+            ini_file = ConfigParser()
+            ini_file.read(configfile)
+            section = "nodeenv"
+            if not ini_file.has_section(section):
+                continue
+
+            for attr, val in iteritems(vars(cls)):
+                if attr.startswith('_') or not \
+                   ini_file.has_option(section, attr):
+                    continue
+
+                if isinstance(val, bool):
+                    val = ini_file.getboolean(section, attr)
+                else:
+                    val = ini_file.get(section, attr)
+
+                if verbose:
+                    print('CONFIG {0}: {1} = {2}'.format(
+                        os.path.basename(configfile), attr, val))
+                setattr(cls, attr, val)
+
+    @classmethod
+    def _dump(cls):
+        """
+        Print defaults for the README.
+        """
+        print ("    [nodeenv]")
+        print ("    " + "\n    ".join(
+            "%s = %s" % (k, v) for k, v in sorted(iteritems(vars(cls)))
+            if not k.startswith('_')))
+
+
+Config._default = dict(
+    (attr, val) for attr, val in iteritems(vars(Config))
+    if not attr.startswith('_')
+)
+
+
+def clear_output(out):
+    """
+    Remove new-lines and
+    """
+    return out.decode('utf-8').replace('\n', '')
+
+
+def remove_env_bin_from_path(env, env_bin_dir):
+    """
+    Remove bin directory of the current environment from PATH
+    """
+    return env.replace(env_bin_dir + ':', '')
+
+
 def node_version_from_opt(opt):
     """
     Parse the node version from the optparse options
@@ -42,7 +124,7 @@ def node_version_from_opt(opt):
     if opt.node == 'system':
         out, err = subprocess.Popen(
             ["node", "--version"], stdout=subprocess.PIPE).communicate()
-        return parse_version(out.replace('\n', '').replace('v',  ''))
+        return parse_version(clear_output(out).replace('v', ''))
 
     return parse_version(opt.node)
 
@@ -79,24 +161,26 @@ def create_logger():
 logger = create_logger()
 
 
-def parse_args():
+def parse_args(check=True):
     """
-    Parses command line arguments
+    Parses command line arguments.
+
+    Set `check` to False to skip validation checks.
     """
     parser = optparse.OptionParser(
         version=nodeenv_version,
         usage="%prog [OPTIONS] ENV_DIR")
 
     parser.add_option(
-        '-n', '--node', dest='node',
-        metavar='NODE_VER', default=get_last_stable_node_version(),
+        '-n', '--node', dest='node', metavar='NODE_VER', default=Config.node,
         help='The node.js version to use, e.g., '
         '--node=0.4.3 will use the node-v0.4.3 '
-        'to create the new environment. The default is last stable version. '
+        'to create the new environment. '
+        'The default is last stable version (`latest`). '
         'Use `system` to use system-wide node.')
 
     parser.add_option(
-        '-j', '--jobs', dest='jobs', default='2',
+        '-j', '--jobs', dest='jobs', default=Config.jobs,
         help='Sets number of parallel commands at node.js compilation. '
         'The default is 2 jobs.')
 
@@ -113,7 +197,12 @@ def parse_args():
     parser.add_option(
         '-q', '--quiet',
         action='store_true', dest='quiet', default=False,
-        help="Quete mode")
+        help="Quiet mode")
+
+    parser.add_option(
+        '-C', '--config-file', dest='config_file', default=None,
+        help="Load a different file than '~/.nodeenvrc'. "
+        "Pass an empty string for no config (use built-in defaults).")
 
     parser.add_option(
         '-r', '--requirements',
@@ -132,36 +221,37 @@ def parse_args():
     parser.add_option(
         '--update', dest='update',
         action='store_true', default=False,
-        help='Install npm packages form file without node')
+        help='Install npm packages from file without node')
 
     parser.add_option(
         '--without-ssl', dest='without_ssl',
-        action='store_true', default=False,
+        action='store_true', default=Config.without_ssl,
         help='Build node.js without SSL support')
 
     parser.add_option(
         '--debug', dest='debug',
-        action='store_true', default=False,
+        action='store_true', default=Config.debug,
         help='Build debug variant of the node.js')
 
     parser.add_option(
         '--profile', dest='profile',
-        action='store_true', default=False,
+        action='store_true', default=Config.profile,
         help='Enable profiling for node.js')
 
     parser.add_option(
         '--with-npm', dest='with_npm',
-        action='store_true', default=False,
+        action='store_true', default=Config.with_npm,
         help='Build without installing npm into the new virtual environment. '
         'Required for node.js < 0.6.3. By default, the npm included with '
         'node.js is used.')
 
     parser.add_option(
         '--npm', dest='npm',
-        metavar='NPM_VER', default='latest',
+        metavar='NPM_VER', default=Config.npm,
         help='The npm version to use, e.g., '
         '--npm=0.3.18 will use the npm-0.3.18.tgz '
-        'tarball to install. The default is last available version.')
+        'tarball to install. '
+        'The default is last available version (`latest`).')
 
     parser.add_option(
         '--no-npm-clean', dest='no_npm_clean',
@@ -187,27 +277,36 @@ def parse_args():
         '--make', '-m', dest='make_path',
         metavar='MAKE_PATH',
         help='Path to make command',
-        default='make')
+        default=Config.make)
 
     parser.add_option(
         '--prebuilt', dest='prebuilt',
-        action='store_true', default=False,
+        action='store_true', default=Config.prebuilt,
         help='Install node.js from prebuilt package')
 
     options, args = parser.parse_args()
+    if options.config_file is None:
+        options.config_file = ["./setup.cfg", "~/.nodeenvrc"]
+    elif not options.config_file:
+        options.config_file = []
+    else:
+        # Make sure that explicitly provided files exist
+        if not os.path.exists(options.config_file):
+            parser.error("Config file '{0}' doesn't exist!".format(
+                options.config_file))
+        options.config_file = [options.config_file]
+
+    if not check:
+        return options, args
 
     if not options.list and not options.python_virtualenv:
         if not args:
-            print('You must provide a DEST_DIR or '
-                  'use current python virtualenv')
-            parser.print_help()
-            sys.exit(2)
+            parser.error('You must provide a DEST_DIR or '
+                         'use current python virtualenv')
 
         if len(args) > 1:
-            print('There must be only one argument: DEST_DIR (you gave %s)' % (
-                ' '.join(args)))
-            parser.print_help()
-            sys.exit(2)
+            parser.error('There must be only one argument: DEST_DIR '
+                         '(you gave: {0})'.format(' '.join(args)))
 
     return options, args
 
@@ -228,36 +327,36 @@ def writefile(dest, content, overwrite=True, append=False):
     """
     Create file and write content in it
     """
+    content = content.encode('utf-8')
     if not os.path.exists(dest):
         logger.debug(' * Writing %s ... ', dest, extra=dict(continued=True))
-        f = open(dest, 'wb')
-        f.write(content.encode('utf-8'))
-        f.close()
+        with open(dest, 'wb') as f:
+            f.write(content)
         logger.debug('done.')
         return
     else:
-        f = open(dest, 'rb')
-        c = f.read()
-        f.close()
-        if c != content.encode('utf-8'):
-            if not overwrite:
-                logger.info(' * File %s exists with different content; '
-                            ' not overwriting', dest)
-                return
-            if append:
-                logger.info(' * Appending nodeenv settings to %s', dest)
-                f = open(dest, 'ab')
-                f.write(DISABLE_POMPT.encode('utf-8'))
-                f.write(content.encode('utf-8'))
-                f.write(ENABLE_PROMPT.encode('utf-8'))
-                f.close()
-                return
-            logger.info(' * Overwriting %s with new content', dest)
-            f = open(dest, 'wb')
-            f.write(content.encode('utf-8'))
-            f.close()
-        else:
+        with open(dest, 'rb') as f:
+            c = f.read()
+        if c == content:
             logger.debug(' * Content %s already in place', dest)
+            return
+
+        if not overwrite:
+            logger.info(' * File %s exists with different content; '
+                        ' not overwriting', dest)
+            return
+
+        if append:
+            logger.info(' * Appending data to %s', dest)
+            with open(dest, 'ab') as f:
+                f.write(DISABLE_POMPT.encode('utf-8'))
+                f.write(content)
+                f.write(ENABLE_PROMPT.encode('utf-8'))
+            return
+
+        logger.info(' * Overwriting %s with new content', dest)
+        with open(dest, 'wb') as f:
+            f.write(content)
 
 
 def callit(cmd, show_stdout=True, in_shell=False,
@@ -306,7 +405,7 @@ def callit(cmd, show_stdout=True, in_shell=False,
         line = stdout.readline()
         if not line:
             break
-        line = line.rstrip()
+        line = line.decode('utf-8').rstrip()
         all_output.append(line)
         if show_stdout:
             logger.info(line)
@@ -370,7 +469,7 @@ def get_node_src_url_postfix(opt):
     postfix_system = platform.system().lower()
     arches = {'x86_64': 'x64', 'i686': 'x86'}
     postfix_arch = arches[platform.machine()]
-    return '-{}-{}'.format(postfix_system, postfix_arch)
+    return '-{0}-{1}'.format(postfix_system, postfix_arch)
 
 # ---------------------------------------------------------
 # Virtual environment functions
@@ -381,7 +480,7 @@ def copy_node_from_prebuilt(env_dir, src_dir):
     Copy prebuilt binaries into environment
     """
     logger.info('.', extra=dict(continued=True))
-    callit(['cp', '-r', src_dir + '/node-v*/*', env_dir], True, env_dir)
+    callit(['cp', '-a', src_dir + '/node-v*/*', env_dir], True, env_dir)
     logger.info('.', extra=dict(continued=True))
 
 
@@ -398,13 +497,15 @@ def build_node_from_src(env_dir, src_dir, node_src_dir, opt):
         if value is not None
     ]
 
-    if sys.version_info.major > 2:
+    if getattr(sys.version_info, 'major', sys.version_info[0]) > 2:
         # Currently, the node.js build scripts are using python2.*,
         # therefore we need to temporarily point python exec to the
         # python 2.* version in this case.
         try:
-            _, which_python2_output = callit(['which', 'python2'])
-            python2_path = which_python2_output[0].decode('utf-8')
+            _, which_python2_output = callit(
+                ['which', 'python2'], opt.verbose, True, node_src_dir, env
+            )
+            python2_path = which_python2_output[0]
         except (OSError, IndexError):
             raise OSError(
                 'Python >=3.0 virtualenv detected, but no python2 '
@@ -523,9 +624,18 @@ def install_activate(env_dir, opt):
                  stat.S_IRGRP | stat.S_IROTH | stat.S_IXOTH)
 
     shim_node = join(bin_dir, "node")
+    shim_nodejs = join(bin_dir, "nodejs")
     if opt.node == "system":
-        _, which_node_output = callit(['which', 'node'])
-        shim_node = which_node_output[0]
+        env = os.environ.copy()
+        env.update({'PATH': remove_env_bin_from_path(env['PATH'], bin_dir)})
+        for candidate in ("nodejs", "node"):
+            which_node_output, _ = subprocess.Popen(
+                ["which", candidate],
+                stdout=subprocess.PIPE, env=env).communicate()
+            shim_node = clear_output(which_node_output)
+            if shim_node:
+                break
+        assert shim_node, "Did not find nodejs or node system executable"
 
     for name, content in files.items():
         file_path = join(bin_dir, name)
@@ -535,8 +645,18 @@ def install_activate(env_dir, opt):
         content = content.replace('__SHIM_NODE__', shim_node)
         content = content.replace('__BIN_NAME__', os.path.basename(bin_dir))
         content = content.replace('__MOD_NAME__', mod_dir)
-        writefile(file_path, content, append=opt.python_virtualenv)
+        # if we call in the same environment:
+        #   $ nodeenv -p --prebuilt
+        #   $ nodeenv -p --node=system
+        # we should get `bin/node` not as binary+string.
+        # `bin/activate` should be appended if we inside
+        # existing python's virtual environment
+        need_append = 0 if name in ('node', 'shim') else opt.python_virtualenv
+        writefile(file_path, content, append=need_append)
         os.chmod(file_path, mode_0755)
+
+    if not os.path.exists(shim_nodejs):
+        os.symlink("node", shim_nodejs)
 
 
 def create_environment(env_dir, opt):
@@ -587,7 +707,7 @@ def print_node_versions():
         if not row:
             logger.info('\t'.join(rowx))
             break
-        rowx.append(row.replace('\n', ''))
+        rowx.append(row.decode('utf-8').replace('\n', ''))
         if pos % 8 == 0:
             logger.info('\t'.join(rowx))
             rowx = []
@@ -609,11 +729,12 @@ def get_last_stable_node_version():
 
 def get_env_dir(opt, args):
     if opt.python_virtualenv:
-        try:
-            return os.environ['VIRTUAL_ENV']
-        except KeyError:
-            logger.error('No python virtualenv is available')
-            sys.exit(2)
+        if hasattr(sys, 'real_prefix'):
+            return sys.prefix
+        elif hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix:
+            return sys.prefix
+        logger.error('No python virtualenv is available')
+        sys.exit(2)
     else:
         return args[0]
 
@@ -622,7 +743,17 @@ def main():
     """
     Entry point
     """
+    # quick&dirty way to help update the README
+    if "--dump-config-defaults" in sys.argv:
+        Config._dump()
+        return
+
+    opt, args = parse_args(check=False)
+    Config._load(opt.config_file, opt.verbose)
+
     opt, args = parse_args()
+    if not opt.node or opt.node.lower() == "latest":
+        opt.node = get_last_stable_node_version()
 
     if opt.list:
         print_node_versions()
@@ -651,7 +782,7 @@ unset NODE_VIRTUAL_ENV_DISABLE_PROMPT
 SHIM = """#!/usr/bin/env bash
 export NODE_PATH=__NODE_VIRTUAL_ENV__/lib/node_modules
 export NPM_CONFIG_PREFIX=__NODE_VIRTUAL_ENV__
-exec __SHIM_NODE__ $*
+exec __SHIM_NODE__ "$@"
 """
 
 ACTIVATE_SH = """
@@ -696,14 +827,19 @@ deactivate_node () {
 }
 
 freeze () {
-    NPM_VER=`npm -v | cut -d '.' -f 1`
+    local NPM_VER=`npm -v | cut -d '.' -f 1`
+    local re="[a-zA-Z0-9\.\-]+@[0-9]+\.[0-9]+\.[0-9]+([\+\-][a-zA-Z0-9\.\-]+)*"
     if [ "$NPM_VER" != '1' ]; then
         NPM_LIST=`npm list installed active 2>/dev/null | \
                   cut -d ' ' -f 1 | grep -v npm`
     else
-        NPM_LIST=`npm ls -g | grep -E '^.{4}\w{1}' | \
-                 grep -o -E '[a-zA-Z0-9\.\-]+@[0-9]+\.[0-9]+\.[0-9]+([\+\-][a-zA-Z0-9\.\-]+)*' | \
-                 grep -v npm`
+        local npmls="npm ls -g"
+        if [ "$1" = "-l" ]; then
+            npmls="npm ls"
+            shift
+        fi
+        NPM_LIST=$(eval ${npmls} | grep -E '^.{4}\w{1}'| \
+                                   grep -o -E "$re"| grep -v npm)
     fi
 
     if [ -z "$@" ]; then

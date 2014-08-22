@@ -1,7 +1,10 @@
-.PHONY: deploy deploy-github deploy-pypi update-pypi clean tests
+.PHONY: default deploy deploy-github deploy-pypi update-pypi clean tests
+
+default:
+	: do nothing when dpkg-buildpackage runs this project Makefile
 
 deploy-github:
-	git tag `grep "nodeenv_version =" nodeenv.py | grep -o -E '[0-9]\.[0-9]\.[0-9]{1,2}'`
+	git tag `grep "nodeenv_version =" nodeenv.py | grep -o -E '[0-9]\.[0-9]{1,2}\.[0-9]{1,2}'`
 	git push --tags origin master
 
 deploy-pypi:
@@ -20,7 +23,9 @@ clean:
 	@rm -rf nodeenv/
 
 test1:
-	@echo " * test1: separate nodejs's env"
+	@echo " ="
+	@echo " = test1: separate nodejs's env"
+	@echo " ="
 	@rm -rf env                           && \
 		virtualenv --no-site-packages env && \
 		. env/bin/activate                && \
@@ -29,7 +34,9 @@ test1:
 		nodeenv -j 4 nodeenv
 
 test2:
-	@echo " * test2: the same virtualenv's env, with 4 jobs"
+	@echo " ="
+	@echo " = test2: the same virtualenv's env, with 4 jobs"
+	@echo " ="
 	@rm -rf env                           && \
 		virtualenv --no-site-packages env && \
 		. env/bin/activate                && \
@@ -37,22 +44,39 @@ test2:
 		nodeenv -j 4 -p
 
 test3:
-	@echo " * test3: the same virtualenv's env, without any params"
+	@echo " ="
+	@echo " = test3: the same virtualenv's env, without any params"
+	@echo " ="
 	@rm -rf env                           && \
 		virtualenv --no-site-packages env && \
 		. env/bin/activate                && \
 		python setup.py install           && \
 		nodeenv -p
 
+# https://github.com/ekalinin/nodeenv/issues/43
 test4:
-	@echo " * test4: separate nodejs's env for python3.3"
-	@rm -rf env                                                  && \
-		virtualenv --no-site-packages --python=python3.3 env     && \
-		. env/bin/activate                                       && \
-		python3.3 setup.py install                               && \
-		python3.3 nodeenv -j 4 -p
+	@echo " ="
+	@echo " = test4: separate nodejs's env for python3.4"
+	@echo " ="
+	@rm -rf env                                                 && \
+		virtualenv --no-site-packages --python=python3.4 env    && \
+		. env/bin/activate                                      && \
+		python setup.py install                                 && \
+		nodeenv 4 -p --prebuilt                                 && \
+		nodeenv -p --node=system
 
-tests: clean test1 clean test2 clean test3 clean
+test5:
+	@echo " ="
+	@echo " = test5: prebuilt nodejs's env for python2"
+	@echo " ="
+	@rm -rf env                                 && \
+		virtualenv --no-site-packages --python=python2.7 env    && \
+		. env/bin/activate                      && \
+		python setup.py install                 && \
+		nodeenv 4 -p --prebuilt                 && \
+		nodeenv -p --node=system
+
+tests: clean test1 clean test2 clean test3 clean test4 clean test5 clean
 
 contributors:
 	@echo "Nodeenv is written and maintained by Eugene Kalinin." > AUTHORS
@@ -63,4 +87,4 @@ contributors:
 	@git log --raw | grep "^Author: " | \
 		sort | uniq -c | sort -n -r | \
 		cut -d ':' -f 2 | sed 's/^/- /' | \
-		cut -d '<' -f1 | uniq | tail -n +3 >> AUTHORS
+		cut -d '<' -f1 | uniq | grep -v Kalinin >> AUTHORS

@@ -6,5 +6,13 @@ env
 /TODO
 /build/
 /dist/
+/bin/
+/include/
+/lib/
+/local/
 /*.egg-info/
 .ropeproject/
+debian/files
+debian/nodeenv.substvars
+/debian/sdist/
+/debian/nodeenv/

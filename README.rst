@@ -20,9 +20,16 @@ You can install nodeenv globally with `easy_install`_::
 
     $ sudo easy_install nodeenv
 
-or `pip`_::
+or with `pip`_::
 
     $ sudo pip install nodeenv
+
+or on Debian using `dpkg`_::
+
+    $ ln -s debian-upstream debian
+    $ dpkg-buildpackage -uc -us -b
+    $ sudo dpkg -i $(ls -1rt ../nodeenv_*.deb | tail -n1)
+
 
 Local installation
 ^^^^^^^^^^^^^^^^^^
@@ -42,6 +49,10 @@ install it from the github `repository`_::
     $ git clone https://github.com/ekalinin/nodeenv.git
     $ ./nodeenv/nodeenv.py --help
 
+or with `pip`_::
+
+    $ pip install -e git+https://github.com/ekalinin/nodeenv.git#egg=nodeenv
+
 .. _repository: https://github.com/ekalinin/nodeenv
 .. _pip: http://pypi.python.org/pypi/pip
 .. _easy_install: http://pypi.python.org/pypi/setuptools
@@ -53,6 +64,7 @@ Dependency
 For nodeenv
 ^^^^^^^^^^^
 
+* python (>= 2.6)
 * make
 * curl
 * egrep
@@ -79,7 +91,7 @@ Activate new environment::
 
     $ . env/bin/activate
 
-Chek versions of main packages::
+Check versions of main packages::
 
     (env) $ node -v
     v0.10.26
@@ -117,7 +129,7 @@ Install node.js from prebuilt package::
 
     $ nodeenv --node=0.10.25 --prebuilt env-0.10.25-prebuilt
 
-It mach faster then install & compile node.js from source::
+It much faster then install & compile node.js from source::
 
     $ time nodeenv --node=0.10.25 --prebuilt env-0.10.25-prebuilt
      + Install node.js (0.10.25) ... done.
@@ -144,9 +156,13 @@ Saving into the file versions of all installed packages::
     (env-4.3)$ npm install -g jade
     (env-4.3)$ freeze ../prod-requirements.txt
 
+If you want to list locally installed packages use ``-l`` option::
+
+    (env-4.3)$ freeze -l ../prod-requirements.txt
+
 Create environment copy from requirement file::
 
-    $ nodeenv --requirement=../prod-requirements.txt --jobs=4 env-copy
+    $ nodeenv --requirements=../prod-requirements.txt --jobs=4 env-copy
 
 Requirements files are plain text files that contain a list of packages 
 to be installed. These text files allow you to create repeatable installations.
@@ -188,19 +204,37 @@ environment::
 
 If environment's directory already exists then you can use ``--force`` option::
 
-    $ nodeenv --requirement=./requirements.txt --jobs=4 --force env
+    $ nodeenv --requirements=requirements.txt --jobs=4 --force env
 
-If you alredy have an environment and want to update packages from requirements
+If you already have an environment and want to update packages from requirements
 file you can use ``--update`` option::
 
     $ . env-4.3/bin/activate
-    (env-4.3)$ nodeenv --update=./requirements.txt
+    (env-4.3)$ nodeenv --requirements=requirements.txt --update env-4.3
 
-If you whant to call node from environment without activation then you shoould
+If you want to call node from environment without activation then you should
 use `shim` script::
 
     $ ./env-4.3/bin/shim --version
     v0.4.3
+
+Configuration
+-------------
+You can use the INI-style file ``~/.nodeenvrc`` to set default values for many options,
+the keys in that file are the long command-line option names.
+
+These are the available options and their defaults::
+
+    [nodeenv]
+    debug = False
+    jobs = 2
+    make = make
+    node = latest
+    npm = latest
+    prebuilt = False
+    profile = False
+    with_npm = False
+    without_ssl = False
 
 Alternatives
 ------------

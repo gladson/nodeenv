@@ -1,6 +1,64 @@
 Nodeenv changelog
 =================
 
+Version 0.11.0
+--------------
+- Improved dpkg rules. See `# 90`_
+- Added --config-file option. See `# 91`_
+- Read "./setup.cfg" in addition to "~/.nodeenvrc" by default. See `# 91`_
+- Python3 compatibility. See `# 92`_, `# 93`_
+
+.. _# 90: https://github.com/ekalinin/nodeenv/pull/90
+.. _# 91: https://github.com/ekalinin/nodeenv/pull/91
+.. _# 92: https://github.com/ekalinin/nodeenv/pull/92
+.. _# 93: https://github.com/ekalinin/nodeenv/pull/93
+
+Version 0.10.0
+--------------
+- Added support for config file. See `# 85`_
+- Using of virtualenv detected via python not env variable. See `# 87`_
+- Fixed ``freeze`` for zsh. See `# 88`_
+- Added ``nodejs`` symlink creation. See `# 84`_
+
+.. _# 85: https://github.com/ekalinin/nodeenv/pull/85
+.. _# 87: https://github.com/ekalinin/nodeenv/pull/87
+.. _# 88: https://github.com/ekalinin/nodeenv/pull/88
+
+Version 0.9.6
+-------------
+- Removed ``os.symlink`` added in `# 76`_. See `# 84`_
+
+.._# 84: https://github.com/ekalinin/nodeenv/issues/84
+
+Version 0.9.5
+-------------
+- Fixed a few spelling typos in README. See `# 74`_
+- Fixed example of using --update option in README. See `# 74`_
+- Improved args passing into shim script. See `# 75`_
+- Try to find ``nodejs`` if used system-wide node as well. See `# 76`_
+- Added ``assert`` if used system-wide node and it wasnt found. See `# 76`_
+- Added ``-l`` option into ``freeze`` command. See `# 71`_
+
+.. _# 71: https://github.com/ekalinin/nodeenv/issues/71
+.. _# 74: https://github.com/ekalinin/nodeenv/issues/74
+.. _# 75: https://github.com/ekalinin/nodeenv/pull/75
+.. _# 76: https://github.com/ekalinin/nodeenv/pull/76
+
+Version 0.9.4
+-------------
+- Fixed support for python2.6. See `# 70`_
+
+.. _# 70: https://github.com/ekalinin/nodeenv/issues/70
+
+Version 0.9.3
+-------------
+- Fixed npm when using prebuilt binaries on Mac OS X. See `# 68`_
+- Fixed using ``system`` node under python3.4. See `# 43`_
+- If used ``system`` node script ``bin/node`` always overwritten
+
+.. _# 68: https://github.com/ekalinin/nodeenv/issues/68
+.. _# 43: https://github.com/ekalinin/nodeenv/issues/43
+
 Version 0.9.2
 -------------
 - Fixed infinite loop when system-wide node used. See `# 67`_
@@ -25,8 +83,8 @@ Version 0.8.2
     - cp more choosy. See `# 64`_
     - exclude top-level files in prebuilt tar. See `# 63`_
 
-.. _#63: https://github.com/ekalinin/nodeenv/issues/63
-.. _#64: https://github.com/ekalinin/nodeenv/issues/64
+.. _# 63: https://github.com/ekalinin/nodeenv/issues/63
+.. _# 64: https://github.com/ekalinin/nodeenv/issues/64
 
 Version 0.8.1
 -------------
